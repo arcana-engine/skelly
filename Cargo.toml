@@ -1,6 +1,6 @@
 [package]
 name = "skelly"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2018"
 authors = ["Zakarum"]
 license = "MIT OR Apache-2.0"
@@ -23,3 +23,6 @@ macroquad = "0.3.0-alpha.15"
 [[example]]
 name = "demo"
 required-features = ["ik"]
+
+[package.metadata.docs.rs]
+features = ["ik"]
