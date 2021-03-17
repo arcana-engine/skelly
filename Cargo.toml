@@ -1,0 +1,25 @@
+[package]
+name = "skelly"
+version = "0.1.0"
+edition = "2018"
+authors = ["Zakarum"]
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/skelly/0.1.0"
+homepage = "https://github.com/zakarumych/skelly"
+repository = "https://github.com/zakarumych/skelly"
+description = "Skeleton animation and IK"
+keywords = ["ik", "skeleton", "animation", "graphics"]
+categories = ["algorithms", "graphics", "animation"]
+
+[features]
+ik = []
+
+[dependencies]
+na = { version = "0.25", package = "nalgebra" }
+
+[dev-dependencies]
+macroquad = "0.3.0-alpha.15"
+
+[[example]]
+name = "demo"
+required-features = ["ik"]
