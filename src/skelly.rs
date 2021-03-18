@@ -63,6 +63,7 @@ where
 
     /// Attach a bone to an existing bone.
     /// New bone is attached to the parent bone with specified displacement.
+    #[track_caller]
     pub fn attach_with(&mut self, relative_position: Point3<T>, parent: usize, userdata: D) -> usize
     where
         T: RealField,
@@ -80,6 +81,7 @@ where
     }
 
     /// Rotate specified bone.
+    #[track_caller]
     pub fn rotate(&mut self, bone: usize, rotation: UnitQuaternion<T>)
     where
         T: RealField,
@@ -89,6 +91,7 @@ where
     }
 
     /// Move specified bone.
+    #[track_caller]
     pub fn translate_bone(&mut self, bone: usize, translation: Translation3<T>)
     where
         T: RealField,
@@ -98,20 +101,24 @@ where
     }
 
     /// Set position for specified bone.
+    #[track_caller]
     pub fn set_bone_position(&mut self, bone: usize, position: Point3<T>) {
         self.bones[bone].isometry.translation = position.coords.into();
     }
 
     /// Returns reference to userdata attached to the bone.
+    #[track_caller]
     pub fn get_userdata(&self, bone: usize) -> &D {
         &self.bones[bone].userdata
     }
 
     /// Returns mutable reference to userdata attached to the bone.
+    #[track_caller]
     pub fn get_userdata_mut(&mut self, bone: usize) -> &mut D {
         &mut self.bones[bone].userdata
     }
 
+    #[track_caller]
     pub fn get_parent(&self, bone: usize) -> Option<usize> {
         self.bones[bone].parent
     }
@@ -165,6 +172,7 @@ where
     }
 
     /// Makes the skelly to assume specifed posture.
+    #[track_caller]
     pub fn assume_posture(&mut self, posture: &Posture<T>)
     where
         T: Copy,
@@ -187,6 +195,7 @@ where
         }
     }
 
+    #[track_caller]
     pub fn make_chain(&self, mut bone: usize, chain: &mut Vec<usize>) {
         while let Some(parent) = self.bones[bone].parent {
             chain.push(parent);
@@ -205,19 +214,20 @@ where
     //     })
     // }
 
-    // pub(crate) fn iter_children(&self, parent: usize) -> impl Iterator<Item = usize> + '_ {
-    //     self.bones
-    //         .iter()
-    //         .enumerate()
-    //         .skip(parent)
-    //         .filter_map(move |(index, bone)| {
-    //             if bone.parent == Some(parent) {
-    //                 Some(index)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    // }
+    #[track_caller]
+    pub(crate) fn iter_children(&self, parent: usize) -> impl Iterator<Item = usize> + '_ {
+        self.bones
+            .iter()
+            .enumerate()
+            .skip(parent)
+            .filter_map(move |(index, bone)| {
+                if bone.parent == Some(parent) {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+    }
 }
 
 pub struct Posture<T: Scalar> {
@@ -241,11 +251,29 @@ where
         self.joints.len()
     }
 
+    #[track_caller]
     pub fn get_joint(&self, bone: usize) -> &Isometry3<T> {
         &self.joints[bone]
     }
 
+    #[track_caller]
     pub fn get_joint_mut(&mut self, bone: usize) -> &mut Isometry3<T> {
         &mut self.joints[bone]
+    }
+
+    #[track_caller]
+    pub fn rotate(&mut self, bone: usize, rotation: &UnitQuaternion<T>)
+    where
+        T: RealField,
+    {
+        self.joints[bone] *= rotation;
+    }
+
+    #[track_caller]
+    pub fn translate(&mut self, bone: usize, translation: &Translation3<T>)
+    where
+        T: RealField,
+    {
+        self.joints[bone] = translation * self.joints[bone];
     }
 }

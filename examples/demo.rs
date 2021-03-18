@@ -11,7 +11,10 @@ use {
         window::{clear_background, next_frame, screen_height, screen_width},
     },
     na::{Isometry3, Point, Point3, Vector, Vector3},
-    skelly::{ik::rotor::RotorSolver, Posture, Skelly},
+    skelly::{
+        ik::{fabrik::FabrikSolver, rotor::RotorSolver},
+        Posture, Skelly,
+    },
 };
 
 #[macroquad::main("ik-test")]
@@ -31,15 +34,17 @@ async fn main() {
 
     let mut globals = vec![Isometry3::identity(); skelly.len()];
 
-    let mut solver = RotorSolver::<f32>::new(0.0001);
+    let mut fabrik_solver = FabrikSolver::<f32>::new(0.0001);
+    let mut rotor_solver = RotorSolver::<f32>::new(0.0001);
     // solver.set_position_goal(index, Point::origin());
-    solver.set_position_goal(left, Point::origin());
-    solver.set_position_goal(right, Point::origin());
+    // solver.set_position_goal(left, Point::origin());
+    // solver.set_position_goal(right, Point::origin());
 
     let mut camera = Camera3D::default();
     let mut left_target = Point::origin();
     let mut right_target = Point::origin();
-    let mut posture = skelly.make_posture();
+    let mut fabrik_posture = skelly.make_posture();
+    let mut rotor_posture = skelly.make_posture();
 
     camera.position.y += 5.0;
 
@@ -67,7 +72,8 @@ async fn main() {
             let x = d * f + o;
 
             left_target = Point3::from(Vector::from([x.x, x.y, x.z]));
-            solver.set_position_goal(left, left_target);
+            fabrik_solver.set_position_goal(left, left_target);
+            rotor_solver.set_position_goal(left, left_target);
         }
 
         if is_mouse_button_down(MouseButton::Right) {
@@ -85,14 +91,19 @@ async fn main() {
             let x = d * f + o;
 
             right_target = Point::from(Vector::from([x.x, x.y, x.z]));
-            solver.set_position_goal(right, right_target);
+            fabrik_solver.set_position_goal(right, right_target);
+            rotor_solver.set_position_goal(right, right_target);
         }
 
         solver_wait_for -= get_frame_time();
         while solver_wait_for < 0.0 {
-            let _solved = solver.solve_step(&skelly, &mut posture);
-            solver_wait_for += 0.001;
+            let _solved = fabrik_solver.solve_step(&skelly, &mut fabrik_posture);
+            let _solved = rotor_solver.solve_step(&skelly, &mut rotor_posture);
+            let _solved = rotor_solver.solve_step(&skelly, &mut rotor_posture);
+            solver_wait_for += 0.5;
         }
+
+        // *posture.get_joint_mut(0) *= UnitQuaternion::from_euler_angles(0.1, 0.1, 0.1);
 
         set_camera(camera);
 
@@ -112,7 +123,8 @@ async fn main() {
             None,
             GREEN,
         );
-        draw_skelly(&skelly, &posture, &mut globals);
+        draw_skelly(&skelly, &fabrik_posture, &mut globals, RED);
+        draw_skelly(&skelly, &rotor_posture, &mut globals, GREEN);
     }
 }
 
@@ -120,6 +132,7 @@ fn draw_skelly(
     skelly: &Skelly<f32, Color>,
     posture: &Posture<f32>,
     globals: &mut Vec<Isometry3<f32>>,
+    color: Color,
 ) {
     skelly.write_globals_for_posture(posture, globals);
 
@@ -127,7 +140,7 @@ fn draw_skelly(
         if let Some(parent) = skelly.get_parent(index) {
             let start = &globals[parent].translation.vector;
             let end = &globals[index].translation.vector;
-            let color = *skelly.get_userdata(index);
+            // let color = *skelly.get_userdata(index);
             draw_line_3d(
                 macroquad::math::Vec3::new(start.x, start.y, start.z),
                 macroquad::math::Vec3::new(end.x, end.y, end.z),
