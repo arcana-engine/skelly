@@ -157,7 +157,7 @@ where
         }
 
         while let Some((bone, tip, goal)) = deque(&mut self.queue) {
-            let inv = self.globals[bone].inverse();
+            let inv = self.globals[bone].translation.inverse();
 
             let mut tip_local = inv * tip;
             let goal_local = inv * goal;
@@ -186,7 +186,7 @@ where
             }
 
             if let Some(parent) = skelly.get_parent(bone) {
-                let tip = self.globals[bone] * tip_local;
+                let tip = self.globals[bone].translation * tip_local;
                 enque(&mut self.queue, parent, tip, goal);
             }
         }
