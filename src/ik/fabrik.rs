@@ -152,76 +152,84 @@ where
                 // if error < self.epsilon {
                 //     continue;
                 // }
-                enque(
-                    &mut self.forward_queue,
-                    goal.bone,
-                    Translation3::from(
-                        position.coords - self.globals[goal.bone].translation.vector,
-                    ),
-                );
+                if let Some(parent) = skelly.get_parent(goal.bone) {
+                    enque(
+                        &mut self.forward_queue,
+                        parent,
+                        Point3::from(self.globals[goal.bone].translation.vector),
+                        position,
+                    );
+                }
             }
         }
 
         // Traverse from effectors to roots.
-        while let Some((bone, target_translation)) = deque(&mut self.forward_queue) {
+        while let Some((bone, effector, target)) = deque(&mut self.forward_queue) {
+            let bone_position = self.globals[bone].translation.vector;
+
+            let old_effector_local = effector.coords - bone_position;
+            let target_local = target.coords - bone_position;
+
+            let required_rotation =
+                UnitQuaternion::rotation_between(&old_effector_local, &target_local)
+                    // .unwrap_or_else(|| {
+                    //     UnitQuaternion::from_euler_angles(T::two_pi(), T::zero(), T::zero())
+                    // });
+                    .unwrap_or_else(UnitQuaternion::identity);
+
+            posture.rotate(bone, &required_rotation);
+            for child in skelly.iter_children(bone) {
+                posture.rotate(child, &required_rotation.inverse());
+            }
+
+            let new_effector_local = required_rotation * old_effector_local;
+            let new_target = target_local - new_effector_local + bone_position;
+
             if let Some(parent) = skelly.get_parent(bone) {
-                let old_position = self.globals[bone].translation.vector;
-                let old_position_local = old_position - self.globals[parent].translation.vector;
-                let target_position_local = old_position_local + target_translation.vector;
-
-                let required_rotation =
-                    UnitQuaternion::rotation_between(&old_position_local, &target_position_local)
-                        .unwrap_or_else(|| {
-                            UnitQuaternion::from_euler_angles(T::two_pi(), T::zero(), T::zero())
-                        });
-
-                posture.rotate(bone, &required_rotation.inverse());
-                posture.rotate(parent, &required_rotation);
-                self.globals[bone] *= required_rotation.inverse();
-                self.globals[parent] *= required_rotation;
-
-                let new_postion_local = required_rotation * old_position_local;
-
                 enque(
                     &mut self.forward_queue,
                     parent,
-                    Translation3::from(target_position_local - new_postion_local),
+                    Point3::from(bone_position),
+                    Point3::from(new_target),
                 );
             } else {
-                // posture.translate(bone, &target_translation);
-
-                // enque(
-                //     &mut self.backward_queue,
-                //     usize::MAX - bone,
-                //     target_translation,
-                // );
+                enque(
+                    &mut self.backward_queue,
+                    usize::MAX - bone,
+                    effector,
+                    target,
+                );
             }
         }
 
         // Traverse from roots to leafs.
-        while let Some((bone, target_translation)) = deque(&mut self.backward_queue) {
+        while let Some((bone, effector, target)) = deque(&mut self.backward_queue) {
             let bone = usize::MAX - bone;
 
+            let bone_position = self.globals[bone].translation.vector;
+
+            let old_effector_local = effector.coords - bone_position;
+            let target_local = target.coords - bone_position;
+
+            let required_rotation =
+                UnitQuaternion::rotation_between(&old_effector_local, &target_local)
+                    // .unwrap_or_else(|| {
+                    //     UnitQuaternion::from_euler_angles(T::two_pi(), T::zero(), T::zero())
+                    // });
+                    .unwrap_or_else(UnitQuaternion::identity);
+
+            posture.rotate(bone, &required_rotation);
+
+            let new_effector_local = required_rotation * old_effector_local;
+            let new_target = target_local - new_effector_local + bone_position;
+
             for child in skelly.iter_children(bone) {
-                let old_position = self.globals[child].translation.vector;
-                let old_position_local = old_position - self.globals[bone].translation.vector;
-                let target_position_local = old_position_local + target_translation.vector;
-
-                let required_rotation =
-                    UnitQuaternion::rotation_between(&old_position_local, &target_position_local)
-                        .unwrap_or_else(|| {
-                            UnitQuaternion::from_euler_angles(T::two_pi(), T::zero(), T::zero())
-                        });
-
-                posture.rotate(child, &required_rotation.inverse());
-                posture.rotate(bone, &required_rotation);
-
-                let new_postion_local = required_rotation * old_position_local;
-
+                posture.rotate(bone, &required_rotation.inverse());
                 enque(
                     &mut self.forward_queue,
                     usize::MAX - child,
-                    Translation3::from(target_position_local - new_postion_local),
+                    Point3::from(bone_position),
+                    Point3::from(new_target),
                 );
             }
         }
@@ -246,10 +254,11 @@ where
 
 struct QueueItem<T: Scalar> {
     bone: usize,
-    translation: Translation3<T>,
+    effector: Point3<T>,
+    target: Point3<T>,
 }
 
-fn enque<T>(queue: &mut Vec<QueueItem<T>>, bone: usize, translation: Translation3<T>)
+fn enque<T>(queue: &mut Vec<QueueItem<T>>, bone: usize, effector: Point3<T>, target: Point3<T>)
 where
     T: Scalar,
 {
@@ -257,18 +266,25 @@ where
         .binary_search_by(|item| item.bone.cmp(&bone))
         .unwrap_or_else(|x| x);
 
-    queue.insert(index, QueueItem { bone, translation });
+    queue.insert(
+        index,
+        QueueItem {
+            bone,
+            effector,
+            target,
+        },
+    );
 }
 
-fn deque<T>(queue: &mut Vec<QueueItem<T>>) -> Option<(usize, Translation3<T>)>
+fn deque<T>(queue: &mut Vec<QueueItem<T>>) -> Option<(usize, Point3<T>, Point3<T>)>
 where
     T: RealField,
 {
     let first = queue.pop()?;
-    dbg!(first.bone, first.translation);
     let mut count = T::one();
 
-    let mut translation_sum = first.translation.vector;
+    let mut effector_sum = first.effector.coords;
+    let mut target_sum = first.target.coords;
     while let Some(item) = queue.pop() {
         if item.bone != first.bone {
             queue.push(item);
@@ -276,8 +292,12 @@ where
         }
 
         count += T::one();
-        translation_sum += item.translation.vector
+        effector_sum += item.effector.coords;
+        target_sum += item.target.coords;
     }
 
-    Some((first.bone, Translation3::from(translation_sum / count)))
+    let effector = Point3::from(effector_sum / count);
+    let target = Point3::from(target_sum / count);
+
+    Some((first.bone, effector, target))
 }
