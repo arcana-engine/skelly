@@ -100,7 +100,7 @@ async fn main() {
             let _solved = fabrik_solver.solve_step(&skelly, &mut fabrik_posture);
             let _solved = rotor_solver.solve_step(&skelly, &mut rotor_posture);
             let _solved = rotor_solver.solve_step(&skelly, &mut rotor_posture);
-            solver_wait_for += 0.5;
+            solver_wait_for += 0.05;
         }
 
         // *posture.get_joint_mut(0) *= UnitQuaternion::from_euler_angles(0.1, 0.1, 0.1);
