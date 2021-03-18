@@ -175,8 +175,7 @@ where
                 .unwrap_or_else(UnitQuaternion::identity);
 
             // rotate the joint
-            let local = posture.get_joint_mut(bone);
-            *local *= rot;
+            posture.rotate(bone, &rot);
             tip_local = rot * tip_local;
 
             let error = tip_local.coords.metric_distance(&goal_local.coords);
