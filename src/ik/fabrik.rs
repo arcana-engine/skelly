@@ -53,7 +53,7 @@ where
         Self::new(error)
     }
 
-    fn solve_step<D>(&mut self, skelly: &Skelly<T, D>, posture: &mut Posture<T>) -> StepResult<T> {
+    fn solve_step<D>(&mut self, skelly: &Skelly<T, D>, posture: &mut Posture<T>) -> StepResult {
         self.solve_step(skelly, posture)
     }
 }
@@ -125,19 +125,15 @@ where
         }
     }
 
-    pub fn solve_step<D>(
-        &mut self,
-        skelly: &Skelly<T, D>,
-        posture: &mut Posture<T>,
-    ) -> StepResult<T>
+    pub fn solve_step<D>(&mut self, skelly: &Skelly<T, D>, posture: &mut Posture<T>) -> StepResult
     where
         T: RealField,
     {
-        assert_eq!(skelly.len(), posture.len());
+        assert!(posture.is_compatible(skelly));
         assert!(self.min_len <= skelly.len());
 
         self.globals.resize_with(skelly.len(), Isometry3::identity);
-        skelly.write_globals_for_posture(posture, &mut self.globals);
+        posture.write_globals(skelly, &Isometry3::identity(), &mut self.globals);
 
         self.forward_queue.clear();
         self.backward_queue.clear();
@@ -145,22 +141,22 @@ where
         // enque effectors
         for goal in &self.goals {
             if let Some(position) = goal.position {
-                // let error = position
-                //     .coords
-                //     .metric_distance(&self.globals[goal.bone].translation.vector);
+                let tip = Point3::from(self.globals[goal.bone].translation.vector);
 
-                // if error < self.epsilon {
-                //     continue;
-                // }
+                let error = position.coords.metric_distance(&tip.coords);
+
+                if error < self.epsilon {
+                    continue;
+                }
+
                 if let Some(parent) = skelly.get_parent(goal.bone) {
-                    enque(
-                        &mut self.forward_queue,
-                        parent,
-                        Point3::from(self.globals[goal.bone].translation.vector),
-                        position,
-                    );
+                    enque(&mut self.forward_queue, parent, tip, position);
                 }
             }
+        }
+
+        if self.forward_queue.is_empty() {
+            return StepResult::Solved;
         }
 
         // Traverse from effectors to roots.
@@ -177,9 +173,9 @@ where
                     // });
                     .unwrap_or_else(UnitQuaternion::identity);
 
-            posture.rotate(bone, &required_rotation);
+            posture.rotate_bone(bone, required_rotation);
             for child in skelly.iter_children(bone) {
-                posture.rotate(child, &required_rotation.inverse());
+                posture.rotate_bone(child, required_rotation.inverse());
             }
 
             let new_effector_local = required_rotation * old_effector_local;
@@ -218,13 +214,13 @@ where
                     // });
                     .unwrap_or_else(UnitQuaternion::identity);
 
-            posture.rotate(bone, &required_rotation);
+            posture.rotate_bone(bone, required_rotation);
 
             let new_effector_local = required_rotation * old_effector_local;
             let new_target = target_local - new_effector_local + bone_position;
 
             for child in skelly.iter_children(bone) {
-                posture.rotate(bone, &required_rotation.inverse());
+                posture.rotate_bone(bone, required_rotation.inverse());
                 enque(
                     &mut self.forward_queue,
                     usize::MAX - child,
@@ -234,21 +230,7 @@ where
             }
         }
 
-        // sum error
-        let error = self.goals.iter().fold(T::zero(), |mut acc, goal| {
-            if let Some(position) = goal.position {
-                acc += position
-                    .coords
-                    .metric_distance(&posture.get_joint(goal.bone).translation.vector);
-            }
-            acc
-        });
-
-        if error < self.epsilon {
-            StepResult::solved(error)
-        } else {
-            StepResult::unsolved(error)
-        }
+        StepResult::Unsolved
     }
 }
 

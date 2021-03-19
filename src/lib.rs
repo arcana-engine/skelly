@@ -22,7 +22,7 @@
 //!
 //! // Write global isometries of every joint into an array.
 //! let mut globals = vec![Isometry3::identity(); skelly.len()];
-//! skelly.write_globals(&mut globals);
+//! skelly.write_globals(&Isometry3::identity(), &mut globals);
 //!
 //! ```
 //!
@@ -32,7 +32,7 @@
 # IK example
 
 ```
-# use {skelly::Skelly, na::{Point3, Vector3, Isometry3}};
+# use {skelly::{Skelly, Posture}, na::{Point3, Vector3, Isometry3}};
 # let mut skelly = Skelly::<f32>::new();
 # let foot = skelly.add_root(Point3::origin());
 # let leg = skelly.attach(Vector3::z().into(), foot);
@@ -46,7 +46,7 @@
 # use skelly::ik::rotor::RotorSolver;
 
 // Using the skelly above, do some inverse-kinematics
-let mut posture = skelly.make_posture();
+let mut posture = Posture::new(&skelly);
 let mut solver = RotorSolver::new(0.01);
 
 // move left palm to the foot.
@@ -59,7 +59,7 @@ for _ in 0..100 {
 
 // Write global isometries of every joint in the posture into an array.
 let mut globals = vec![Isometry3::identity(); skelly.len()];
-skelly.write_globals_for_posture(&posture, &mut globals);
+posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
 ```
 "###
 )]

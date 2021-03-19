@@ -40,8 +40,8 @@ async fn main() {
     let mut camera = Camera3D::default();
     let mut left_target = Point::origin();
     let mut right_target = Point::origin();
-    let mut fabrik_posture = skelly.make_posture();
-    let mut rotor_posture = skelly.make_posture();
+    let mut fabrik_posture = Posture::new(&skelly);
+    let mut rotor_posture = Posture::new(&skelly);
 
     camera.position.y += 5.0;
 
@@ -100,8 +100,6 @@ async fn main() {
             solver_wait_for += 0.05;
         }
 
-        // *posture.get_joint_mut(0) *= UnitQuaternion::from_euler_angles(0.1, 0.1, 0.1);
-
         set_camera(camera);
 
         next_frame().await;
@@ -131,7 +129,7 @@ fn draw_skelly(
     globals: &mut Vec<Isometry3<f32>>,
     color: Color,
 ) {
-    skelly.write_globals_for_posture(posture, globals);
+    posture.write_globals(skelly, &Isometry3::identity(), globals);
 
     for index in 0..skelly.len() {
         if let Some(parent) = skelly.get_parent(index) {
