@@ -120,7 +120,7 @@ where
     ///
     /// // Rotate root bone. It is still at origin.
     /// // Yet global position of the `bone` attached to `root` has changed accordingly.
-    /// skelly.rotate_bone(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
+    /// skelly.append_rotation(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
     ///
     /// skelly.write_globals(&Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -133,11 +133,54 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn rotate_bone(&mut self, bone: usize, rotation: UnitQuaternion<T>)
+    pub fn append_rotation(&mut self, bone: usize, rotation: UnitQuaternion<T>)
     where
         T: RealField,
     {
         self.bones[bone].isometry.rotation *= rotation
+    }
+
+    /// Rotates bone with specified id.
+    ///
+    /// Affect relative position to the parent and global position for root bones.
+    /// Affects global position of all descendant bones.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use {skelly::Skelly, na::{Point3, Isometry3, UnitQuaternion, Vector3}, core::f32::{consts::PI, EPSILON}};
+    /// let mut skelly = Skelly::<f32>::new();
+    /// let root = skelly.add_root(Point3::origin());
+    /// let bone = skelly.attach(Vector3::x(), root);
+    ///
+    /// let mut globals = [Isometry3::identity(); 2];
+    /// skelly.write_globals(&Isometry3::identity(), &mut globals);
+    /// let bone_global_old = globals[bone];
+    ///
+    /// // Ensure that bone is placed correctly in global space at (1, 0, 0).
+    /// assert!((bone_global_old.translation.vector - Vector3::x()).magnitude() < EPSILON);
+    ///
+    /// // Rotate the bone. It is still at origin.
+    /// // Yet global position of the `bone` attached to `root` has changed accordingly.
+    /// skelly.prepend_rotation(bone, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
+    ///
+    /// skelly.write_globals(&Isometry3::identity(), &mut globals);
+    /// let bone_global_new = globals[bone];
+    ///
+    /// // Ensure that bone is placed correctly in global space after root rotation at (0, 1, 0).
+    /// assert!((bone_global_new.translation.vector - Vector3::y()).magnitude() < EPSILON);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `bone` index is out of bounds.
+    #[track_caller]
+    pub fn prepend_rotation(&mut self, bone: usize, rotation: UnitQuaternion<T>)
+    where
+        T: RealField,
+    {
+        let my_isometry = &mut self.bones[bone].isometry;
+        *my_isometry = rotation * *my_isometry;
     }
 
     /// Translates bone with specified id.
@@ -162,7 +205,7 @@ where
     ///
     /// // Translate root bone.
     /// // Global position of the `bone` attached to `root` has changed accordingly.
-    /// skelly.translate_bone(root, Vector3::z().into());
+    /// skelly.append_translation(root, Vector3::z().into());
     ///
     /// skelly.write_globals(&Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -175,7 +218,7 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn translate_bone(&mut self, bone: usize, translation: Translation3<T>)
+    pub fn append_translation(&mut self, bone: usize, translation: Translation3<T>)
     where
         T: RealField,
     {
@@ -186,7 +229,7 @@ where
     /// Affects global position of all descendant bones.
     ///
     /// This method ignores current relative position of the bone.
-    /// To apply translation to current relative poistion see [`Skelly::translate_bone`].
+    /// To apply translation to current relative poistion see [`Skelly::append_translation`].
     ///
     /// # Example
     ///
@@ -204,7 +247,7 @@ where
     /// assert!((bone_global_old.translation.vector - Vector3::x()).magnitude() < EPSILON);
     ///
     /// // Set new relative position for the `bone`.
-    /// skelly.set_bone_position(bone, Vector3::z());
+    /// skelly.set_position(bone, Vector3::z());
     ///
     /// skelly.write_globals(&Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -217,15 +260,24 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn set_bone_position(&mut self, bone: usize, position: Vector3<T>) {
+    pub fn set_position(&mut self, bone: usize, position: Vector3<T>) {
         self.bones[bone].isometry.translation = position.into();
+    }
+
+    /// Returns current bone position relative to parent.
+    #[track_caller]
+    pub fn get_position(&mut self, bone: usize) -> Vector3<T>
+    where
+        T: RealField,
+    {
+        self.bones[bone].isometry.translation.vector
     }
 
     /// Sets relative orientation for bone with specified id.
     /// Affects global position of all descendant bones.
     ///
     /// This method ignores current relative position of the bone.
-    /// To apply translation to current relative poistion see [`Skelly::translate_bone`].
+    /// To apply translation to current relative poistion see [`Skelly::append_translation`].
     ///
     /// # Example
     ///
@@ -243,7 +295,7 @@ where
     /// assert!((bone_global_old.translation.vector - Vector3::x()).magnitude() < EPSILON);
     ///
     /// // Set new relative orientation for the `bone`.
-    /// skelly.set_bone_orientation(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
+    /// skelly.set_orientation(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
     ///
     /// skelly.write_globals(&Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -256,8 +308,26 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn set_bone_orientation(&mut self, bone: usize, orientation: UnitQuaternion<T>) {
+    pub fn set_orientation(&mut self, bone: usize, orientation: UnitQuaternion<T>) {
         self.bones[bone].isometry.rotation = orientation;
+    }
+
+    /// Returns current bone orientation relative to parent.
+    #[track_caller]
+    pub fn get_orientation(&mut self, bone: usize) -> UnitQuaternion<T>
+    where
+        T: RealField,
+    {
+        self.bones[bone].isometry.rotation
+    }
+
+    /// Returns current bone isometry relative to parent.
+    #[track_caller]
+    pub fn get_isometry(&mut self, bone: usize) -> Isometry3<T>
+    where
+        T: RealField,
+    {
+        self.bones[bone].isometry
     }
 
     /// Returns reference to userdata associated with the `bone`.
@@ -597,7 +667,7 @@ where
     ///
     /// // Rotate root bone. It is still at origin.
     /// // Yet global position of the `bone` attached to `root` has changed accordingly.
-    /// posture.rotate_bone(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
+    /// posture.append_rotation(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
     ///
     /// posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -610,11 +680,56 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn rotate_bone(&mut self, bone: usize, rotation: UnitQuaternion<T>)
+    pub fn append_rotation(&mut self, bone: usize, rotation: UnitQuaternion<T>)
     where
         T: RealField,
     {
         self.joints[bone].rotation *= rotation
+    }
+
+    /// Rotates bone with specified id.
+    ///
+    /// *Does not* affect relative position to the parent and global position for root bones.
+    /// Affects global position of all descendant bones.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use {skelly::{Skelly, Posture}, na::{Point3, Isometry3, UnitQuaternion, Vector3}, core::f32::{consts::PI, EPSILON}};
+    /// let mut skelly = Skelly::<f32>::new();
+    /// let root = skelly.add_root(Point3::origin());
+    /// let bone = skelly.attach(Vector3::x(), root);
+    ///
+    /// let mut posture = Posture::new(&skelly);
+    ///
+    /// let mut globals = [Isometry3::identity(); 2];
+    /// posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
+    /// let bone_global_old = globals[bone];
+    ///
+    /// // Ensure that bone is placed correctly in global space at (1, 0, 0).
+    /// assert!((bone_global_old.translation.vector - Vector3::x()).magnitude() < EPSILON);
+    ///
+    /// // Rotate the bone. It is still at origin.
+    /// // Yet global position of the `bone` attached to `root` has changed accordingly.
+    /// posture.prepend_rotation(bone, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
+    ///
+    /// posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
+    /// let bone_global_new = globals[bone];
+    ///
+    /// // Ensure that bone is placed correctly in global space after root rotation at (0, 1, 0).
+    /// assert!((bone_global_new.translation.vector - Vector3::y()).magnitude() < EPSILON);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `bone` index is out of bounds.
+    #[track_caller]
+    pub fn prepend_rotation(&mut self, bone: usize, rotation: UnitQuaternion<T>)
+    where
+        T: RealField,
+    {
+        let my_isometry = &mut self.joints[bone];
+        *my_isometry = rotation * *my_isometry;
     }
 
     /// Translates bone with specified id.
@@ -641,7 +756,7 @@ where
     ///
     /// // Translate root bone.
     /// // Global position of the `bone` attached to `root` has changed accordingly.
-    /// posture.translate_bone(root, Vector3::z().into());
+    /// posture.append_translation(root, Vector3::z().into());
     ///
     /// posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -654,7 +769,7 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn translate_bone(&mut self, bone: usize, translation: Translation3<T>)
+    pub fn append_translation(&mut self, bone: usize, translation: Translation3<T>)
     where
         T: RealField,
     {
@@ -665,7 +780,7 @@ where
     /// Affects global position of all descendant bones.
     ///
     /// This method ignores current relative position of the bone.
-    /// To apply translation to current relative poistion see [`Skelly::translate_bone`].
+    /// To apply translation to current relative poistion see [`Skelly::append_translation`].
     ///
     /// # Example
     ///
@@ -685,7 +800,7 @@ where
     /// assert!((bone_global_old.translation.vector - Vector3::x()).magnitude() < EPSILON);
     ///
     /// // Set new relative position for the `bone`.
-    /// posture.set_bone_position(bone, Vector3::z());
+    /// posture.set_position(bone, Vector3::z());
     ///
     /// posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -698,15 +813,24 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn set_bone_position(&mut self, bone: usize, position: Vector3<T>) {
+    pub fn set_position(&mut self, bone: usize, position: Vector3<T>) {
         self.joints[bone].translation = position.into();
+    }
+
+    /// Returns current bone position relative to parent.
+    #[track_caller]
+    pub fn get_position(&mut self, bone: usize) -> Vector3<T>
+    where
+        T: RealField,
+    {
+        self.joints[bone].translation.vector
     }
 
     /// Sets relative orientation for bone with specified id.
     /// Affects global position of all descendant bones.
     ///
     /// This method ignores current relative position of the bone.
-    /// To apply translation to current relative poistion see [`Skelly::translate_bone`].
+    /// To apply translation to current relative poistion see [`Skelly::append_translation`].
     ///
     /// # Example
     ///
@@ -726,7 +850,7 @@ where
     /// assert!((bone_global_old.translation.vector - Vector3::x()).magnitude() < EPSILON);
     ///
     /// // Set new relative orientation for the `bone`.
-    /// posture.set_bone_orientation(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
+    /// posture.set_orientation(root, UnitQuaternion::from_euler_angles(0.0, 0.0, PI / 2.0));
     ///
     /// posture.write_globals(&skelly, &Isometry3::identity(), &mut globals);
     /// let bone_global_new = globals[bone];
@@ -739,8 +863,26 @@ where
     ///
     /// This method panics if `bone` index is out of bounds.
     #[track_caller]
-    pub fn set_bone_orientation(&mut self, bone: usize, orientation: UnitQuaternion<T>) {
+    pub fn set_orientation(&mut self, bone: usize, orientation: UnitQuaternion<T>) {
         self.joints[bone].rotation = orientation;
+    }
+
+    /// Returns current bone orientation relative to parent.
+    #[track_caller]
+    pub fn get_orientation(&mut self, bone: usize) -> UnitQuaternion<T>
+    where
+        T: RealField,
+    {
+        self.joints[bone].rotation
+    }
+
+    /// Returns current bone isometry relative to parent.
+    #[track_caller]
+    pub fn get_isometry(&mut self, bone: usize) -> Isometry3<T>
+    where
+        T: RealField,
+    {
+        self.joints[bone]
     }
 
     /// Fills slice of `Isometry3` with global isometries

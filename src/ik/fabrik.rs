@@ -138,63 +138,63 @@ where
         self.forward_queue.clear();
         self.backward_queue.clear();
 
+        let mut total_error = T::zero();
+
         // enque effectors
         for goal in &self.goals {
             if let Some(position) = goal.position {
-                let tip = Point3::from(self.globals[goal.bone].translation.vector);
+                let effector = Point3::from(self.globals[goal.bone].translation.vector);
 
-                let error = position.coords.metric_distance(&tip.coords);
-
-                if error < self.epsilon {
-                    continue;
-                }
+                let error = position.coords.metric_distance(&effector.coords);
+                total_error += error;
 
                 if let Some(parent) = skelly.get_parent(goal.bone) {
-                    enque(&mut self.forward_queue, parent, tip, position);
+                    enque(&mut self.forward_queue, parent, effector, position);
                 }
             }
         }
 
-        if self.forward_queue.is_empty() {
+        if total_error < self.epsilon {
             return StepResult::Solved;
         }
 
         // Traverse from effectors to roots.
         while let Some((bone, effector, target)) = deque(&mut self.forward_queue) {
-            let bone_position = self.globals[bone].translation.vector;
+            let global = &self.globals[bone];
+            let inverse = global.inverse();
 
-            let old_effector_local = effector.coords - bone_position;
-            let target_local = target.coords - bone_position;
+            let old_effector_local = inverse * effector;
+            let target_local = inverse * target;
 
             let required_rotation =
-                UnitQuaternion::rotation_between(&old_effector_local, &target_local)
-                    // .unwrap_or_else(|| {
-                    //     UnitQuaternion::from_euler_angles(T::two_pi(), T::zero(), T::zero())
-                    // });
+                UnitQuaternion::rotation_between(&old_effector_local.coords, &target_local.coords)
                     .unwrap_or_else(UnitQuaternion::identity);
 
-            posture.rotate_bone(bone, required_rotation);
+            posture.append_rotation(bone, required_rotation);
+
+            let required_rotation_child = required_rotation.inverse();
             for child in skelly.iter_children(bone) {
-                posture.rotate_bone(child, required_rotation.inverse());
+                let new_orientation = required_rotation_child * posture.get_orientation(child);
+                posture.set_orientation(child, new_orientation);
             }
 
             let new_effector_local = required_rotation * old_effector_local;
-            let new_target = target_local - new_effector_local + bone_position;
+            let new_target_local = target_local - new_effector_local;
 
             if let Some(parent) = skelly.get_parent(bone) {
                 enque(
                     &mut self.forward_queue,
                     parent,
-                    Point3::from(bone_position),
-                    Point3::from(new_target),
+                    Point3::from(global.translation.vector),
+                    global * Point3::from(new_target_local),
                 );
             } else {
-                enque(
-                    &mut self.backward_queue,
-                    usize::MAX - bone,
-                    effector,
-                    target,
-                );
+                // enque(
+                //     &mut self.backward_queue,
+                //     usize::MAX - bone,
+                //     effector,
+                //     target,
+                // );
             }
         }
 
@@ -214,13 +214,13 @@ where
                     // });
                     .unwrap_or_else(UnitQuaternion::identity);
 
-            posture.rotate_bone(bone, required_rotation);
+            posture.append_rotation(bone, required_rotation);
 
             let new_effector_local = required_rotation * old_effector_local;
             let new_target = target_local - new_effector_local + bone_position;
 
             for child in skelly.iter_children(bone) {
-                posture.rotate_bone(bone, required_rotation.inverse());
+                posture.append_rotation(bone, required_rotation.inverse());
                 enque(
                     &mut self.forward_queue,
                     usize::MAX - child,

@@ -133,56 +133,54 @@ where
         self.globals.resize_with(skelly.len(), Isometry3::identity);
         posture.write_globals(skelly, &Isometry3::identity(), &mut self.globals);
 
+        let mut total_error = T::zero();
         for goal in &self.goals {
             if let Some(position) = goal.position {
-                let tip = Point3::from(self.globals[goal.bone].translation.vector);
+                let effector = Point3::from(self.globals[goal.bone].translation.vector);
 
-                let error = position.coords.metric_distance(&tip.coords);
-
-                if error < self.epsilon {
-                    continue;
-                }
+                let error = position.coords.metric_distance(&effector.coords);
+                total_error += error;
 
                 if let Some(parent) = skelly.get_parent(goal.bone) {
-                    enque(&mut self.queue, parent, tip, position);
+                    enque(&mut self.queue, parent, effector, position);
                 }
             }
         }
 
-        if self.queue.is_empty() {
+        if total_error < self.epsilon {
             return StepResult::Solved;
         }
 
-        while let Some((bone, tip, goal)) = deque(&mut self.queue) {
-            let inv = self.globals[bone].translation.inverse();
+        while let Some((bone, effector, target)) = deque(&mut self.queue) {
+            let global = &self.globals[bone];
+            let inverse = global.inverse();
 
-            let mut tip_local = inv * tip;
-            let goal_local = inv * goal;
+            let mut effector_local = inverse * effector;
+            let target_local = inverse * target;
 
-            if tip_local.coords.magnitude_squared() < self.epsilon {
-                continue;
-            }
+            // if effector_local.coords.magnitude_squared() < self.epsilon {
+            //     continue;
+            // }
 
-            if goal_local.coords.magnitude_squared() < self.epsilon {
-                continue;
-            }
+            // if target_local.coords.magnitude_squared() < self.epsilon {
+            //     continue;
+            // }
 
-            let rot = UnitQuaternion::rotation_between(&tip_local.coords, &goal_local.coords)
-                // .unwrap_or_else(|| UnitQuaternion::from_euler_angles(T::one(), T::one(), T::one()));
-                .unwrap_or_else(UnitQuaternion::identity);
+            let required_rotation =
+                UnitQuaternion::rotation_between(&effector_local.coords, &target_local.coords)
+                    .unwrap_or_else(UnitQuaternion::identity);
 
-            // rotate the joint
-            posture.rotate_bone(bone, rot);
-            tip_local = rot * tip_local;
+            posture.append_rotation(bone, required_rotation);
+            effector_local = required_rotation * effector_local;
 
-            let error = tip_local.coords.metric_distance(&goal_local.coords);
+            let error = effector_local.coords.metric_distance(&target_local.coords);
             if error < self.epsilon {
                 continue;
             }
 
             if let Some(parent) = skelly.get_parent(bone) {
-                let tip = self.globals[bone].translation * tip_local;
-                enque(&mut self.queue, parent, tip, goal);
+                let effector = global * effector_local;
+                enque(&mut self.queue, parent, effector, target);
             }
         }
 
@@ -193,11 +191,11 @@ where
 #[derive(Debug)]
 struct QueueItem<T: Scalar> {
     bone: usize,
-    tip: Point3<T>,
-    goal: Point3<T>,
+    effector: Point3<T>,
+    target: Point3<T>,
 }
 
-fn enque<T>(queue: &mut Vec<QueueItem<T>>, bone: usize, tip: Point3<T>, goal: Point3<T>)
+fn enque<T>(queue: &mut Vec<QueueItem<T>>, bone: usize, effector: Point3<T>, target: Point3<T>)
 where
     T: Scalar,
 {
@@ -205,7 +203,14 @@ where
         .binary_search_by(|item| item.bone.cmp(&bone))
         .unwrap_or_else(|x| x);
 
-    queue.insert(index, QueueItem { bone, tip, goal });
+    queue.insert(
+        index,
+        QueueItem {
+            bone,
+            effector,
+            target,
+        },
+    );
 }
 
 fn deque<T>(queue: &mut Vec<QueueItem<T>>) -> Option<(usize, Point3<T>, Point3<T>)>
@@ -215,8 +220,8 @@ where
     let first = queue.pop()?;
 
     let mut count = T::one();
-    let mut tip_sum = first.tip.coords;
-    let mut goal_sum = first.goal.coords;
+    let mut effector_sum = first.effector.coords;
+    let mut target_sum = first.target.coords;
     while let Some(item) = queue.pop() {
         if item.bone != first.bone {
             queue.push(item);
@@ -224,13 +229,13 @@ where
         }
 
         count += T::one();
-        tip_sum += item.tip.coords;
-        goal_sum += item.goal.coords;
+        effector_sum += item.effector.coords;
+        target_sum += item.target.coords;
     }
 
     Some((
         first.bone,
-        Point3::from(tip_sum / count),
-        Point3::from(goal_sum / count),
+        Point3::from(effector_sum / count),
+        Point3::from(target_sum / count),
     ))
 }

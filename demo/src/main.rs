@@ -5,17 +5,58 @@ use {
             Color, BLUE, DARKGRAY, GOLD, GREEN, LIME, MAGENTA, MAROON, ORANGE, PINK, RED, WHITE,
             YELLOW,
         },
-        input::{is_key_pressed, is_mouse_button_down, mouse_position, KeyCode, MouseButton},
+        input::{
+            is_key_pressed, is_mouse_button_down, is_mouse_button_pressed, mouse_position, KeyCode,
+            MouseButton,
+        },
         models::{draw_line_3d, draw_sphere},
         time::get_frame_time,
         window::{clear_background, next_frame, screen_height, screen_width},
     },
     na::{Isometry3, Point, Point3, Vector, Vector3},
     skelly::{
-        ik::{fabrik::FabrikSolver, rotor::RotorSolver},
+        ik::{fabrik::FabrikSolver, rotor::RotorSolver, StepResult},
         Posture, Skelly,
     },
+    std::collections::VecDeque,
 };
+
+struct SlidingWindowCounter {
+    window: usize,
+    counters: VecDeque<usize>,
+    total: usize,
+}
+
+impl SlidingWindowCounter {
+    fn new(window: usize) -> Self {
+        SlidingWindowCounter {
+            window,
+            counters: VecDeque::new(),
+            total: 0,
+        }
+    }
+
+    fn add(&mut self, count: usize) {
+        if self.counters.is_empty() {
+            self.next();
+        }
+
+        *self.counters.back_mut().unwrap() += count;
+        self.total += count;
+    }
+
+    fn next(&mut self) {
+        self.counters.push_back(0);
+
+        while self.counters.len() > self.window {
+            self.total -= self.counters.pop_front().unwrap();
+        }
+    }
+
+    fn mean(&self) -> f32 {
+        self.total as f32 / self.counters.len() as f32
+    }
+}
 
 #[macroquad::main("ik-test")]
 async fn main() {
@@ -24,37 +65,50 @@ async fn main() {
     index = skelly.attach_with(Vector3::z().into(), index, MAROON);
     index = skelly.attach_with(Vector3::z().into(), index, PINK);
 
-    let mut left = skelly.attach_with(Vector3::z().into(), index, ORANGE);
-    left = skelly.attach_with((-Vector3::x()).into(), left, MAGENTA);
-    left = skelly.attach_with((-Vector3::x()).into(), left, BLUE);
+    let mut fst = skelly.attach_with(Vector3::z().into(), index, ORANGE);
+    fst = skelly.attach_with((-Vector3::x()).into(), fst, MAGENTA);
+    fst = skelly.attach_with((-Vector3::x()).into(), fst, BLUE);
 
-    let mut right = skelly.attach_with(Vector3::z().into(), index, LIME);
-    right = skelly.attach_with(Vector3::x().into(), right, YELLOW);
-    right = skelly.attach_with(Vector3::x().into(), right, WHITE);
+    let mut snd = skelly.attach_with(Vector3::z().into(), index, LIME);
+    snd = skelly.attach_with(Vector3::x().into(), snd, YELLOW);
+    snd = skelly.attach_with(Vector3::x().into(), snd, WHITE);
+
+    let mut trd = skelly.attach_with(Vector3::z().into(), index, LIME);
+    trd = skelly.attach_with(Vector3::z().into(), trd, YELLOW);
+    trd = skelly.attach_with(Vector3::z().into(), trd, WHITE);
 
     let mut globals = vec![Isometry3::identity(); skelly.len()];
 
-    let mut fabrik_solver = FabrikSolver::<f32>::new(0.0001);
-    let mut rotor_solver = RotorSolver::<f32>::new(0.0001);
+    let mut fabrik_solver = FabrikSolver::<f32>::new(0.01);
+    let mut rotor_solver = RotorSolver::<f32>::new(0.01);
 
     let mut camera = Camera3D::default();
-    let mut left_target = Point::origin();
-    let mut right_target = Point::origin();
+    let mut fst_target = None;
+    let mut snd_target = None;
+    let mut trd_target = None;
     let mut fabrik_posture = Posture::new(&skelly);
     let mut rotor_posture = Posture::new(&skelly);
 
     camera.position.y += 5.0;
 
-    let mut solver_wait_for = 1.0;
+    let mut fabrik_steps = SlidingWindowCounter::new(10);
+    let mut rotor_steps = SlidingWindowCounter::new(10);
+
+    // let mut solver_wait_for = 1.0;
+    let mut steps_report_wait_for = 5.0;
 
     loop {
+        next_frame().await;
+
+        let frame_time = get_frame_time();
+
         if is_key_pressed(KeyCode::Escape) {
             break;
         }
 
         let camera_matrix = camera.matrix();
 
-        if is_mouse_button_down(MouseButton::Left) {
+        if is_mouse_button_pressed(MouseButton::Left) {
             let (x, y) = mouse_position();
             let (x, y) = (
                 x * 2.0 / screen_width() - 1.0,
@@ -65,15 +119,19 @@ async fn main() {
             let o = camera_matrix_inv.transform_point3(macroquad::math::Vec3::zero());
             let t = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
             let d = t - o;
+            // let f = 3.0 / d.y;
             let f = -o.y / d.y;
             let x = d * f + o;
 
-            left_target = Point3::from(Vector::from([x.x, x.y, x.z]));
-            fabrik_solver.set_position_goal(left, left_target);
-            rotor_solver.set_position_goal(left, left_target);
+            let target = Point3::from(Vector::from([x.x, x.y, x.z]));
+            fst_target = Some(target);
+            fabrik_solver.set_position_goal(fst, target);
+            rotor_solver.set_position_goal(fst, target);
+            fabrik_steps.next();
+            rotor_steps.next();
         }
 
-        if is_mouse_button_down(MouseButton::Right) {
+        if is_mouse_button_pressed(MouseButton::Right) {
             let (x, y) = mouse_position();
             let (x, y) = (
                 x * 2.0 / screen_width() - 1.0,
@@ -87,37 +145,96 @@ async fn main() {
             let f = -o.y / d.y;
             let x = d * f + o;
 
-            right_target = Point::from(Vector::from([x.x, x.y, x.z]));
-            fabrik_solver.set_position_goal(right, right_target);
-            rotor_solver.set_position_goal(right, right_target);
+            let target = Point::from(Vector::from([x.x, x.y, x.z]));
+            snd_target = Some(target);
+            fabrik_solver.set_position_goal(snd, target);
+            rotor_solver.set_position_goal(snd, target);
         }
 
-        solver_wait_for -= get_frame_time();
-        while solver_wait_for < 0.0 {
-            let _solved = fabrik_solver.solve_step(&skelly, &mut fabrik_posture);
-            let _solved = rotor_solver.solve_step(&skelly, &mut rotor_posture);
-            let _solved = rotor_solver.solve_step(&skelly, &mut rotor_posture);
-            solver_wait_for += 0.05;
+        if is_mouse_button_pressed(MouseButton::Middle) {
+            let (x, y) = mouse_position();
+            let (x, y) = (
+                x * 2.0 / screen_width() - 1.0,
+                1.0 - y * 2.0 / screen_height(),
+            );
+
+            let camera_matrix_inv = camera_matrix.inverse();
+            let o = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(0.0, 0.0, 0.0));
+            let t = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
+            let d = t - o;
+            let f = -o.y / d.y;
+            let x = d * f + o;
+
+            let target = Point::from(Vector::from([x.x, x.y, x.z]));
+            trd_target = Some(target);
+            fabrik_solver.set_position_goal(trd, target);
+            rotor_solver.set_position_goal(trd, target);
+        }
+
+        // solver_wait_for -= frame_time;
+        // while solver_wait_for < 0.0 {
+        //     solver_wait_for += 0.5;
+
+        if fst_target.is_some() {
+            for _ in 0..1 {
+                if let StepResult::Unsolved = fabrik_solver.solve_step(&skelly, &mut fabrik_posture)
+                {
+                    fabrik_steps.add(1);
+                } else {
+                    // println!("FABRIK SOLVED");
+                    break;
+                }
+            }
+            for _ in 0..1 {
+                if let StepResult::Unsolved = rotor_solver.solve_step(&skelly, &mut rotor_posture) {
+                    rotor_steps.add(1);
+                } else {
+                    // println!("ROTOR SOLVED");
+                    break;
+                }
+            }
+        }
+        // }
+
+        steps_report_wait_for -= frame_time;
+        while steps_report_wait_for < 0.0 {
+            steps_report_wait_for += 5.0;
+
+            println!("Mean steps count");
+            println!("FABRIK: {}", fabrik_steps.mean());
+            println!("ROTOR: {}", rotor_steps.mean());
         }
 
         set_camera(camera);
 
-        next_frame().await;
         clear_background(DARKGRAY);
 
-        draw_sphere(
-            macroquad::math::Vec3::new(left_target.x, left_target.y, left_target.z),
-            0.1,
-            None,
-            RED,
-        );
+        if let Some(fst_target) = fst_target {
+            draw_sphere(
+                macroquad::math::Vec3::new(fst_target.x, fst_target.y, fst_target.z),
+                0.1,
+                None,
+                RED,
+            );
+        }
 
-        draw_sphere(
-            macroquad::math::Vec3::new(right_target.x, right_target.y, right_target.z),
-            0.1,
-            None,
-            GREEN,
-        );
+        if let Some(snd_target) = snd_target {
+            draw_sphere(
+                macroquad::math::Vec3::new(snd_target.x, snd_target.y, snd_target.z),
+                0.1,
+                None,
+                GREEN,
+            );
+        }
+
+        if let Some(trd_target) = trd_target {
+            draw_sphere(
+                macroquad::math::Vec3::new(trd_target.x, trd_target.y, trd_target.z),
+                0.1,
+                None,
+                BLUE,
+            );
+        }
         draw_skelly(&skelly, &fabrik_posture, &mut globals, RED);
         draw_skelly(&skelly, &rotor_posture, &mut globals, GREEN);
     }
