@@ -12,28 +12,26 @@ struct IkGoal<T: Scalar> {
     position: Option<Point3<T>>,
     orientation: Option<UnitQuaternion<T>>,
 }
-pub struct FabrikSolver<T: Scalar> {
+pub struct FrikSolver<T: Scalar> {
     epsilon: T,
     min_len: usize,
     goals: Vec<IkGoal<T>>,
 
     // temp vectors. saved to keep allocation.
     forward_queue: Vec<QueueItem<T>>,
-    backward_queue: Vec<QueueItem<T>>,
     globals: Vec<Isometry3<T>>,
 }
 
-impl<T> Clone for FabrikSolver<T>
+impl<T> Clone for FrikSolver<T>
 where
     T: Scalar,
 {
     fn clone(&self) -> Self {
-        FabrikSolver {
+        FrikSolver {
             epsilon: self.epsilon.clone(),
             min_len: self.min_len,
             goals: self.goals.clone(),
             forward_queue: Vec::new(),
-            backward_queue: Vec::new(),
             globals: Vec::new(),
         }
     }
@@ -45,7 +43,7 @@ where
     }
 }
 
-impl<T> IkSolver<T> for FabrikSolver<T>
+impl<T> IkSolver<T> for FrikSolver<T>
 where
     T: RealField,
 {
@@ -58,27 +56,15 @@ where
     }
 }
 
-impl<T> FabrikSolver<T>
+impl<T> FrikSolver<T>
 where
     T: Scalar,
 {
     pub fn new(epsilon: T) -> Self {
-        FabrikSolver {
+        FrikSolver {
             goals: Vec::new(),
             min_len: 0,
             forward_queue: Vec::new(),
-            backward_queue: Vec::new(),
-            globals: Vec::new(),
-            epsilon,
-        }
-    }
-
-    pub fn new_one_way(epsilon: T) -> Self {
-        FabrikSolver {
-            goals: Vec::new(),
-            min_len: 0,
-            forward_queue: Vec::new(),
-            backward_queue: Vec::new(),
             globals: Vec::new(),
             epsilon,
         }
@@ -147,7 +133,6 @@ where
         posture.write_globals(skelly, &Isometry3::identity(), &mut self.globals);
 
         self.forward_queue.clear();
-        self.backward_queue.clear();
 
         let mut total_error = T::zero();
 
@@ -198,65 +183,6 @@ where
                     parent,
                     Point3::from(global.translation.vector),
                     global * Point3::from(new_target_local),
-                );
-            } else {
-                enque(
-                    &mut self.backward_queue,
-                    usize::MAX - bone,
-                    global * Point3::from(new_target_local),
-                    Point3::from(global.translation.vector),
-                );
-            }
-        }
-
-        // Traverse from roots to leafs.
-        while let Some((bone, effector, target)) = deque(&mut self.backward_queue) {
-            let bone = usize::MAX - bone;
-
-            let mut count = T::zero();
-            for _ in skelly.iter_children(bone) {
-                count += T::one();
-            }
-
-            let mut required_rotation = UnitQuaternion::identity();
-            for child in skelly.iter_children(bone) {
-                let global = self.globals[bone] * posture.get_isometry(child).translation;
-                let inverse = global.inverse();
-
-                let old_effector_local = inverse * effector;
-                let target_local = inverse * target;
-
-                let partial_rotation = UnitQuaternion::rotation_between(
-                    &old_effector_local.coords,
-                    &target_local.coords,
-                )
-                .map(|q| q.powf(T::one() / count))
-                .unwrap_or_else(UnitQuaternion::identity);
-
-                required_rotation *= partial_rotation;
-            }
-
-            posture.append_rotation(bone, required_rotation);
-
-            let required_rotation_child = required_rotation.inverse();
-            for child in skelly.iter_children(bone) {
-                let new_orientation = required_rotation_child * posture.get_orientation(child);
-                posture.set_orientation(child, new_orientation);
-
-                let global = self.globals[bone] * posture.get_isometry(child).translation;
-                let inverse = global.inverse();
-
-                let old_effector_local = inverse * effector;
-                let target_local = inverse * target;
-
-                let new_effector_local = required_rotation * old_effector_local;
-                let new_target_local = target_local - new_effector_local;
-
-                enque(
-                    &mut self.backward_queue,
-                    usize::MAX - child,
-                    global * posture.get_isometry(child).rotation * Point3::from(new_target_local),
-                    Point3::from(global.translation.vector),
                 );
             }
         }

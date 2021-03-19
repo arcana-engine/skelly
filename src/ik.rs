@@ -1,6 +1,7 @@
 //! This module contains inverse-kinematic functionality for the skelly crate.
 
 pub mod fabrik;
+pub mod frik;
 pub mod rotor;
 
 use {

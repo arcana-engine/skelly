@@ -15,7 +15,7 @@ use {
     },
     na::{Isometry3, Point, Point3, Vector, Vector3},
     skelly::{
-        ik::{fabrik::FabrikSolver, rotor::RotorSolver, StepResult},
+        ik::{fabrik::FabrikSolver, frik::FrikSolver, rotor::RotorSolver, StepResult},
         Posture, Skelly,
     },
     std::collections::VecDeque,
@@ -79,6 +79,7 @@ async fn main() {
 
     let mut globals = vec![Isometry3::identity(); skelly.len()];
 
+    let mut frik_solver = FrikSolver::<f32>::new(0.01);
     let mut fabrik_solver = FabrikSolver::<f32>::new(0.01);
     let mut rotor_solver = RotorSolver::<f32>::new(0.01);
 
@@ -86,13 +87,15 @@ async fn main() {
     let mut fst_target = None;
     let mut snd_target = None;
     let mut trd_target = None;
+    let mut frik_posture = Posture::new(&skelly);
     let mut fabrik_posture = Posture::new(&skelly);
     let mut rotor_posture = Posture::new(&skelly);
 
     camera.position.y += 5.0;
 
-    let mut fabrik_steps = SlidingWindowCounter::new(10);
-    let mut rotor_steps = SlidingWindowCounter::new(10);
+    let mut frik_steps = SlidingWindowCounter::new(500);
+    let mut fabrik_steps = SlidingWindowCounter::new(500);
+    let mut rotor_steps = SlidingWindowCounter::new(500);
 
     // let mut solver_wait_for = 1.0;
     let mut steps_report_wait_for = 5.0;
@@ -125,8 +128,10 @@ async fn main() {
 
             let target = Point3::from(Vector::from([x.x, x.y, x.z]));
             fst_target = Some(target);
+            frik_solver.set_position_goal(fst, target);
             fabrik_solver.set_position_goal(fst, target);
             rotor_solver.set_position_goal(fst, target);
+            frik_steps.next();
             fabrik_steps.next();
             rotor_steps.next();
         }
@@ -147,8 +152,12 @@ async fn main() {
 
             let target = Point::from(Vector::from([x.x, x.y, x.z]));
             snd_target = Some(target);
+            frik_solver.set_position_goal(snd, target);
             fabrik_solver.set_position_goal(snd, target);
             rotor_solver.set_position_goal(snd, target);
+            frik_steps.next();
+            fabrik_steps.next();
+            rotor_steps.next();
         }
 
         if is_mouse_button_pressed(MouseButton::Middle) {
@@ -167,8 +176,12 @@ async fn main() {
 
             let target = Point::from(Vector::from([x.x, x.y, x.z]));
             trd_target = Some(target);
+            frik_solver.set_position_goal(trd, target);
             fabrik_solver.set_position_goal(trd, target);
             rotor_solver.set_position_goal(trd, target);
+            frik_steps.next();
+            fabrik_steps.next();
+            rotor_steps.next();
         }
 
         // solver_wait_for -= frame_time;
@@ -176,6 +189,14 @@ async fn main() {
         //     solver_wait_for += 0.5;
 
         if fst_target.is_some() {
+            for _ in 0..1 {
+                if let StepResult::Unsolved = frik_solver.solve_step(&skelly, &mut frik_posture) {
+                    frik_steps.add(1);
+                } else {
+                    // println!("FRIK SOLVED");
+                    break;
+                }
+            }
             for _ in 0..1 {
                 if let StepResult::Unsolved = fabrik_solver.solve_step(&skelly, &mut fabrik_posture)
                 {
@@ -201,6 +222,7 @@ async fn main() {
             steps_report_wait_for += 5.0;
 
             println!("Mean steps count");
+            println!("FRIK: {}", frik_steps.mean());
             println!("FABRIK: {}", fabrik_steps.mean());
             println!("ROTOR: {}", rotor_steps.mean());
         }
@@ -235,6 +257,7 @@ async fn main() {
                 BLUE,
             );
         }
+        draw_skelly(&skelly, &frik_posture, &mut globals, BLUE);
         draw_skelly(&skelly, &fabrik_posture, &mut globals, RED);
         draw_skelly(&skelly, &rotor_posture, &mut globals, GREEN);
     }
