@@ -17,12 +17,8 @@ ik = []
 [dependencies]
 na = { version = "0.25", package = "nalgebra" }
 
-[dev-dependencies]
-macroquad = "0.3.0-alpha.15"
-
-[[example]]
-name = "demo"
-required-features = ["ik"]
-
 [package.metadata.docs.rs]
 features = ["ik"]
+
+[workspace]
+members = ["demo"]

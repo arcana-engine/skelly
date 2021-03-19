@@ -3,7 +3,7 @@
 use {
     super::{IkSolver, StepResult},
     crate::skelly::{Posture, Skelly},
-    na::{Isometry3, Point3, RealField, Scalar, Translation3, UnitQuaternion},
+    na::{Isometry3, Point3, RealField, Scalar, UnitQuaternion},
 };
 
 #[derive(Clone, Copy)]

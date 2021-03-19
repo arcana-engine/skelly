@@ -36,9 +36,6 @@ async fn main() {
 
     let mut fabrik_solver = FabrikSolver::<f32>::new(0.0001);
     let mut rotor_solver = RotorSolver::<f32>::new(0.0001);
-    // solver.set_position_goal(index, Point::origin());
-    // solver.set_position_goal(left, Point::origin());
-    // solver.set_position_goal(right, Point::origin());
 
     let mut camera = Camera3D::default();
     let mut left_target = Point::origin();
