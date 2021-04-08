@@ -1,0 +1,22 @@
+[package]
+name = "demo2"
+version = "0.1.0"
+authors = ["Zakarum <zakarumych@ya.ru>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+skelly = { path = "..", features = ["ik"] }
+na = { version = "0.25", package = "nalgebra" }
+sierra = { path = "../../sierra" }
+parry3d = "0.2"
+eyre = "0.6"
+color-eyre = "0.5"
+tracing = "0.1"
+tracing-error = "0.1"
+tracing-subscriber = "0.2"
+winit = "0.24"
+lru = "0.6"
+smallvec = "1.6"
+palette = { version = "0.5", features = ["named"] }

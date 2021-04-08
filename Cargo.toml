@@ -21,4 +21,4 @@ na = { version = "0.25", package = "nalgebra" }
 features = ["ik"]
 
 [workspace]
-members = ["demo"]
+members = ["demo", "demo2"]

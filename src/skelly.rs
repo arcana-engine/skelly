@@ -1,7 +1,7 @@
 use na::{Isometry3, Point3, RealField, Scalar, Translation3, UnitQuaternion, Vector3};
 
 /// One's skeleton.
-/// Parameterized with numric value and bone userdata type.
+/// Parameterized with numeric value and bone userdata type.
 pub struct Skelly<T: Scalar, D = ()> {
     bones: Vec<Bone<T, D>>,
 }
