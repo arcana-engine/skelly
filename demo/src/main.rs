@@ -227,7 +227,7 @@ async fn main() {
             println!("ROTOR: {}", rotor_steps.mean());
         }
 
-        set_camera(camera);
+        set_camera(&camera);
 
         clear_background(DARKGRAY);
 

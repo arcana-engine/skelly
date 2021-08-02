@@ -2,10 +2,14 @@ use na::{Isometry3, Point3, RealField, Scalar, Translation3, UnitQuaternion, Vec
 
 /// One's skeleton.
 /// Parameterized with numric value and bone userdata type.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde-1", derive(serde::Serialize, serde::Deserialize))]
 pub struct Skelly<T: Scalar, D = ()> {
     bones: Vec<Bone<T, D>>,
 }
 
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde-1", derive(serde::Serialize, serde::Deserialize))]
 struct Bone<T: Scalar, D> {
     isometry: Isometry3<T>,
     parent: Option<usize>,

@@ -1,10 +1,10 @@
 [package]
 name = "skelly"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2018"
 authors = ["Zakarum"]
 license = "MIT OR Apache-2.0"
-documentation = "https://docs.rs/skelly/0.1.0"
+documentation = "https://docs.rs/skelly"
 homepage = "https://github.com/zakarumych/skelly"
 repository = "https://github.com/zakarumych/skelly"
 description = "Skeleton animation and IK"
@@ -13,9 +13,11 @@ categories = ["algorithms", "graphics", "animation"]
 
 [features]
 ik = []
+serde-1 = ["serde", "na/serde-serialize"]
 
 [dependencies]
-na = { version = "0.25", package = "nalgebra" }
+na = { version = "0.28", package = "nalgebra" }
+serde = { version = "1.0", optional = true, features = ["derive"] }
 
 [package.metadata.docs.rs]
 features = ["ik"]
