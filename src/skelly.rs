@@ -184,7 +184,7 @@ where
         T: RealField,
     {
         let my_isometry = &mut self.bones[bone].isometry;
-        *my_isometry = rotation * *my_isometry;
+        *my_isometry = rotation * &*my_isometry;
     }
 
     /// Translates bone with specified id.
@@ -270,11 +270,11 @@ where
 
     /// Returns current bone position relative to parent.
     #[track_caller]
-    pub fn get_position(&mut self, bone: usize) -> Vector3<T>
+    pub fn get_position(&mut self, bone: usize) -> &Vector3<T>
     where
         T: RealField,
     {
-        self.bones[bone].isometry.translation.vector
+        &self.bones[bone].isometry.translation.vector
     }
 
     /// Sets relative orientation for bone with specified id.
@@ -318,20 +318,20 @@ where
 
     /// Returns current bone orientation relative to parent.
     #[track_caller]
-    pub fn get_orientation(&mut self, bone: usize) -> UnitQuaternion<T>
+    pub fn get_orientation(&mut self, bone: usize) -> &UnitQuaternion<T>
     where
         T: RealField,
     {
-        self.bones[bone].isometry.rotation
+        &self.bones[bone].isometry.rotation
     }
 
     /// Returns current bone isometry relative to parent.
     #[track_caller]
-    pub fn get_isometry(&mut self, bone: usize) -> Isometry3<T>
+    pub fn get_isometry(&mut self, bone: usize) -> &Isometry3<T>
     where
         T: RealField,
     {
-        self.bones[bone].isometry
+        &self.bones[bone].isometry
     }
 
     /// Returns reference to userdata associated with the `bone`.
@@ -461,10 +461,10 @@ where
             .for_each(|(index, bone)| match bone.parent {
                 Some(parent) => {
                     debug_assert!(parent < index);
-                    globals[index] = globals[parent] * bone.isometry;
+                    globals[index] = &globals[parent] * &bone.isometry;
                 }
                 None => {
-                    globals[index] = skelly_global * bone.isometry;
+                    globals[index] = skelly_global * &bone.isometry;
                 }
             })
     }
@@ -639,7 +639,11 @@ where
         T: RealField,
     {
         Posture {
-            joints: skelly.bones.iter().map(|bone| bone.isometry).collect(),
+            joints: skelly
+                .bones
+                .iter()
+                .map(|bone| bone.isometry.clone())
+                .collect(),
         }
     }
 
@@ -733,7 +737,7 @@ where
         T: RealField,
     {
         let my_isometry = &mut self.joints[bone];
-        *my_isometry = rotation * *my_isometry;
+        *my_isometry = rotation * &*my_isometry;
     }
 
     /// Translates bone with specified id.
@@ -823,11 +827,11 @@ where
 
     /// Returns current bone position relative to parent.
     #[track_caller]
-    pub fn get_position(&mut self, bone: usize) -> Vector3<T>
+    pub fn get_position(&mut self, bone: usize) -> &Vector3<T>
     where
         T: RealField,
     {
-        self.joints[bone].translation.vector
+        &self.joints[bone].translation.vector
     }
 
     /// Sets relative orientation for bone with specified id.
@@ -873,20 +877,20 @@ where
 
     /// Returns current bone orientation relative to parent.
     #[track_caller]
-    pub fn get_orientation(&mut self, bone: usize) -> UnitQuaternion<T>
+    pub fn get_orientation(&mut self, bone: usize) -> &UnitQuaternion<T>
     where
         T: RealField,
     {
-        self.joints[bone].rotation
+        &self.joints[bone].rotation
     }
 
     /// Returns current bone isometry relative to parent.
     #[track_caller]
-    pub fn get_isometry(&mut self, bone: usize) -> Isometry3<T>
+    pub fn get_isometry(&mut self, bone: usize) -> &Isometry3<T>
     where
         T: RealField,
     {
-        self.joints[bone]
+        &self.joints[bone]
     }
 
     /// Fills slice of `Isometry3` with global isometries
@@ -937,10 +941,10 @@ where
             .for_each(|(index, (isometry, bone))| match bone.parent {
                 Some(parent) => {
                     debug_assert!(parent < index);
-                    globals[index] = globals[parent] * *isometry;
+                    globals[index] = &globals[parent] * isometry;
                 }
                 None => {
-                    globals[index] = skelly_global * *isometry;
+                    globals[index] = skelly_global * isometry;
                 }
             })
     }
