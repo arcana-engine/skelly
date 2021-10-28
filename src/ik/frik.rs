@@ -45,7 +45,7 @@ where
 
 impl<T> IkSolver<T> for FrikSolver<T>
 where
-    T: RealField,
+    T: RealField + Copy,
 {
     fn new(error: T) -> Self {
         Self::new(error)
@@ -74,12 +74,7 @@ where
     where
         T: Copy,
     {
-        match self
-            .goals
-            .iter_mut()
-            .skip_while(|goal| goal.bone != bone)
-            .next()
-        {
+        match self.goals.iter_mut().find(|goal| goal.bone == bone) {
             Some(goal) => {
                 if goal.bone == bone {
                     goal.position = Some(position);
@@ -100,12 +95,7 @@ where
     where
         T: Copy,
     {
-        match self
-            .goals
-            .iter_mut()
-            .skip_while(|goal| goal.bone != bone)
-            .next()
-        {
+        match self.goals.iter_mut().find(|goal| goal.bone == bone) {
             Some(goal) => {
                 if goal.bone == bone {
                     goal.orientation = Some(orientation);
@@ -124,7 +114,7 @@ where
 
     pub fn solve_step<D>(&mut self, skelly: &Skelly<T, D>, posture: &mut Posture<T>) -> StepResult
     where
-        T: RealField,
+        T: RealField + Copy,
     {
         assert!(posture.is_compatible(skelly));
         assert!(self.min_len <= skelly.len());
@@ -217,7 +207,7 @@ where
 
 fn deque<T>(queue: &mut Vec<QueueItem<T>>) -> Option<(usize, Point3<T>, Point3<T>)>
 where
-    T: RealField,
+    T: RealField + Copy,
 {
     let first = queue.pop()?;
     let mut count = T::one();
