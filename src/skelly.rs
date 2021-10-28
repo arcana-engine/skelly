@@ -16,6 +16,15 @@ struct Bone<T: Scalar, D> {
     userdata: D,
 }
 
+impl<T, D> Default for Skelly<T, D>
+where
+    T: Scalar,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, D> Skelly<T, D>
 where
     T: Scalar,
@@ -434,6 +443,24 @@ where
     /// ```
     pub fn len(&self) -> usize {
         self.bones.len()
+    }
+
+    /// Returns if the skelly has no bones.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use {skelly::Skelly, na::{Point3, Vector3}};
+    /// let mut skelly = Skelly::<f32>::new();
+    ///
+    /// assert!(skelly.is_empty());
+    ///
+    /// let root = skelly.add_root(Point3::origin());
+    ///
+    /// assert!(!skelly.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.bones.is_empty()
     }
 
     /// Fills slice of `Isometry3` with global isometries
