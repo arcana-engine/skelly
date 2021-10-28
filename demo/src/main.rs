@@ -5,10 +5,7 @@ use {
             Color, BLUE, DARKGRAY, GOLD, GREEN, LIME, MAGENTA, MAROON, ORANGE, PINK, RED, WHITE,
             YELLOW,
         },
-        input::{
-            is_key_pressed, is_mouse_button_down, is_mouse_button_pressed, mouse_position, KeyCode,
-            MouseButton,
-        },
+        input::{is_key_pressed, is_mouse_button_pressed, mouse_position, KeyCode, MouseButton},
         models::{draw_line_3d, draw_sphere},
         time::get_frame_time,
         window::{clear_background, next_frame, screen_height, screen_width},
@@ -61,21 +58,21 @@ impl SlidingWindowCounter {
 #[macroquad::main("ik-test")]
 async fn main() {
     let mut skelly = Skelly::<f32, Color>::new();
-    let mut index = skelly.add_root_with(Point::origin(), GOLD);
-    index = skelly.attach_with(Vector3::z().into(), index, MAROON);
-    index = skelly.attach_with(Vector3::z().into(), index, PINK);
+    let mut index = skelly.add_root_with(Point3::origin(), GOLD);
+    index = skelly.attach_with(Vector3::z(), index, MAROON);
+    index = skelly.attach_with(Vector3::z(), index, PINK);
 
-    let mut fst = skelly.attach_with(Vector3::z().into(), index, ORANGE);
-    fst = skelly.attach_with((-Vector3::x()).into(), fst, MAGENTA);
-    fst = skelly.attach_with((-Vector3::x()).into(), fst, BLUE);
+    let mut fst = skelly.attach_with(Vector3::z(), index, ORANGE);
+    fst = skelly.attach_with(-Vector3::x(), fst, MAGENTA);
+    fst = skelly.attach_with(-Vector3::x(), fst, BLUE);
 
-    let mut snd = skelly.attach_with(Vector3::z().into(), index, LIME);
-    snd = skelly.attach_with(Vector3::x().into(), snd, YELLOW);
-    snd = skelly.attach_with(Vector3::x().into(), snd, WHITE);
+    let mut snd = skelly.attach_with(Vector3::z(), index, LIME);
+    snd = skelly.attach_with(Vector3::x(), snd, YELLOW);
+    snd = skelly.attach_with(Vector3::x(), snd, WHITE);
 
-    let mut trd = skelly.attach_with(Vector3::z().into(), index, LIME);
-    trd = skelly.attach_with(Vector3::z().into(), trd, YELLOW);
-    trd = skelly.attach_with(Vector3::z().into(), trd, WHITE);
+    let mut trd = skelly.attach_with(Vector3::z(), index, LIME);
+    trd = skelly.attach_with(Vector3::z(), trd, YELLOW);
+    trd = skelly.attach_with(Vector3::z(), trd, WHITE);
 
     let mut globals = vec![Isometry3::identity(); skelly.len()];
 
@@ -119,12 +116,13 @@ async fn main() {
             );
 
             let camera_matrix_inv = camera_matrix.inverse();
-            let o = camera_matrix_inv.transform_point3(macroquad::math::Vec3::zero());
-            let t = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
-            let d = t - o;
+            let origin = camera_matrix_inv.transform_point3(macroquad::math::Vec3::ZERO);
+            let target =
+                camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
+            let direction = target - origin;
             // let f = 3.0 / d.y;
-            let f = -o.y / d.y;
-            let x = d * f + o;
+            let focus = -origin.y / direction.y;
+            let x = direction * focus + origin;
 
             let target = Point3::from(Vector::from([x.x, x.y, x.z]));
             fst_target = Some(target);
@@ -144,11 +142,13 @@ async fn main() {
             );
 
             let camera_matrix_inv = camera_matrix.inverse();
-            let o = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(0.0, 0.0, 0.0));
-            let t = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
-            let d = t - o;
-            let f = -o.y / d.y;
-            let x = d * f + o;
+            let origin =
+                camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(0.0, 0.0, 0.0));
+            let target =
+                camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
+            let direction = target - origin;
+            let focus = -origin.y / direction.y;
+            let x = direction * focus + origin;
 
             let target = Point::from(Vector::from([x.x, x.y, x.z]));
             snd_target = Some(target);
@@ -168,11 +168,13 @@ async fn main() {
             );
 
             let camera_matrix_inv = camera_matrix.inverse();
-            let o = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(0.0, 0.0, 0.0));
-            let t = camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
-            let d = t - o;
-            let f = -o.y / d.y;
-            let x = d * f + o;
+            let origin =
+                camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(0.0, 0.0, 0.0));
+            let target =
+                camera_matrix_inv.transform_point3(macroquad::math::Vec3::new(x, y, 0.999));
+            let direction = target - origin;
+            let focus = -origin.y / direction.y;
+            let x = direction * focus + origin;
 
             let target = Point::from(Vector::from([x.x, x.y, x.z]));
             trd_target = Some(target);
