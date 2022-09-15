@@ -8,5 +8,5 @@ publish = false
 
 [dependencies]
 skelly = { path = "..", features = ["ik"] }
-na = { version = "0.29", package = "nalgebra" }
+na = { version = "0.31", package = "nalgebra" }
 macroquad = "0.3.0-alpha.15"
